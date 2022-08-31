@@ -1,0 +1,28 @@
+{
+  "private": false,
+  "name": "insomnia-plugin-request",
+  "version": "3.5.1-beta.1",
+  "author": "Kong <office@konghq.com>",
+  "description": "Insomnia request template tag",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kong/insomnia.git",
+    "directory": "plugins/insomnia-plugin-request"
+  },
+  "bugs": {
+    "url": "https://github.com/Kong/insomnia/issues"
+  },
+  "main": "index.js",
+  "insomnia": {
+    "name": "request",
+    "unlisted": true
+  },
+  "scripts": {
+    "test": "jest --silent"
+  },
+  "dependencies": {
+    "insomnia-cookies": "3.5.1-beta.1",
+    "insomnia-url": "3.5.1-beta.1"
+  }
+}

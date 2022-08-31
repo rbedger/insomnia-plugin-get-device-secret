@@ -1,28 +1,25 @@
 {
   "private": false,
-  "name": "insomnia-plugin-request",
-  "version": "3.5.1-beta.1",
-  "author": "Kong <office@konghq.com>",
-  "description": "Insomnia request template tag",
+  "name": "insomnia-plugin-get-device-secret",
+  "version": "1",
+  "author": "Robert Edger <rbedger@gmail.com>",
+  "description": "Insomnia OAUTH template - get device secret",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Kong/insomnia.git",
-    "directory": "plugins/insomnia-plugin-request"
+    "url": "https://github.com/rbedger/insomnia-plugin-get-device-secret.git"
   },
   "bugs": {
-    "url": "https://github.com/Kong/insomnia/issues"
+    "url": "https://github.com/rbedger/insomnia-plugin-get-device-secret/issues"
   },
   "main": "index.js",
   "insomnia": {
-    "name": "request",
-    "unlisted": true
+    "name": "get-device-secret"
   },
   "scripts": {
     "test": "jest --silent"
   },
   "dependencies": {
-    "insomnia-cookies": "3.5.1-beta.1",
-    "insomnia-url": "3.5.1-beta.1"
+    "nedb": "^1.8.0"
   }
 }

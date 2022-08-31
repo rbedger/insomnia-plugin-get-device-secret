@@ -1,94 +1,14 @@
-const {
-  buildQueryStringFromParams,
-  joinUrlAndQueryString,
-  smartEncodeUrl,
-} = require('insomnia-url');
-const { jarFromCookies } = require('insomnia-cookies');
+const NeDB = require('nedb');
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
 
 module.exports.templateTags = [
   {
-    name: 'request',
-    displayName: 'Request',
-    description: 'reference value from current request',
-    args: [
-      {
-        displayName: 'Attribute',
-        type: 'enum',
-        options: [
-          {
-            displayName: 'Name',
-            value: 'name',
-            description: 'name of request',
-          },
-          {
-            displayName: 'Folder',
-            value: 'folder',
-            description: 'name of parent folder (or workspace)',
-          },
-          {
-            displayName: 'URL',
-            value: 'url',
-            description: 'fully qualified URL',
-          },
-          {
-            displayName: 'Query Parameter',
-            value: 'parameter',
-            description: 'query parameter by name',
-          },
-          {
-            displayName: 'Header',
-            value: 'header',
-            description: 'header value by name',
-          },
-          {
-            displayName: 'Cookie',
-            value: 'cookie',
-            description: 'cookie value by name',
-          },
-          {
-            displayName: 'OAuth 2.0 Access Token',
-            value: 'oauth2',
-            /* 
-              This value is left as is and not renamed to 'oauth2-access' so as to not
-              break the current release's usage of `oauth2`.
-            */
-          },
-          {
-            displayName: 'OAuth 2.0 Identity Token',
-            value: 'oauth2-identity',
-          },
-          {
-            displayName: 'OAuth 2.0 Refresh Token',
-            value: 'oauth2-refresh',
-          },
-        ],
-      },
-      {
-        type: 'string',
-        hide: args =>
-          ['url', 'oauth2', 'oauth2-identity', 'oauth2-refresh', 'name', 'folder'].includes(
-            args[0].value,
-          ),
-        displayName: args => {
-          switch (args[0].value) {
-            case 'cookie':
-              return 'Cookie Name';
-            case 'parameter':
-              return 'Query Parameter Name';
-            case 'header':
-              return 'Header Name';
-            default:
-              return 'Name';
-          }
-        },
-      },
-      {
-        hide: args => args[0].value !== 'folder',
-        displayName: 'Parent Index',
-        help: 'Specify an index (Starting at 0) for how high up the folder tree to look',
-        type: 'number',
-      },
-    ],
+    name: 'getdevicesecret',
+    displayName: 'Get Device Secret',
+    description: 'reference device secret from current request',
+    args: [],
 
     async run(context, attribute, name, folderIndex) {
       const { meta } = context;
@@ -98,146 +18,78 @@ module.exports.templateTags = [
       }
 
       const request = await context.util.models.request.getById(meta.requestId);
-      const workspace = await context.util.models.workspace.getById(meta.workspaceId);
 
       if (!request) {
         throw new Error(`Request not found for ${meta.requestId}`);
       }
 
-      if (!workspace) {
-        throw new Error(`Workspace not found for ${meta.workspaceId}`);
+      const oauth2Token = await context.util.models.oAuth2Token.getByRequestId(request._id);
+      if (!oauth2Token) {
+        throw new Error('No OAuth 2.0 tokens found for request');
       }
 
-      switch (attribute) {
-        case 'url':
-          return getRequestUrl(context, request);
-        case 'cookie':
-          if (!name) {
-            throw new Error('No cookie specified');
-          }
-
-          const cookieJar = await context.util.models.cookieJar.getOrCreateForWorkspace(workspace);
-          const url = await getRequestUrl(context, request);
-          return getCookieValue(cookieJar, url, name);
-        case 'parameter':
-          if (!name) {
-            throw new Error('No query parameter specified');
-          }
-
-          const parameterNames = [];
-
-          if (request.parameters.length === 0) {
-            throw new Error('No query parameters available');
-          }
-
-          for (const queryParameter of request.parameters) {
-            const queryParameterName = await context.util.render(queryParameter.name);
-            parameterNames.push(queryParameterName);
-            if (queryParameterName.toLowerCase() === name.toLowerCase()) {
-              return context.util.render(queryParameter.value);
-            }
-          }
-
-          const parameterNamesStr = parameterNames.map(n => `"${n}"`).join(',\n\t');
-          throw new Error(
-            `No query parameter with name "${name}".\nChoices are [\n\t${parameterNamesStr}\n]`,
-          );
-        case 'header':
-          if (!name) {
-            throw new Error('No header specified');
-          }
-
-          const headerNames = [];
-
-          if (request.headers.length === 0) {
-            throw new Error('No headers available');
-          }
-
-          for (const header of request.headers) {
-            const headerName = await context.util.render(header.name);
-            headerNames.push(headerName);
-            if (headerName.toLowerCase() === name.toLowerCase()) {
-              return context.util.render(header.value);
-            }
-          }
-
-          const headerNamesStr = headerNames.map(n => `"${n}"`).join(',\n\t');
-          throw new Error(`No header with name "${name}".\nChoices are [\n\t${headerNamesStr}\n]`);
-        case 'oauth2':
-          const access = await context.util.models.oAuth2Token.getByRequestId(request._id);
-          if (!access || !access.accessToken) {
-            throw new Error('No OAuth 2.0 access tokens found for request');
-          }
-          return access.accessToken;
-        case 'oauth2-identity':
-          const identity = await context.util.models.oAuth2Token.getByRequestId(request._id);
-          if (!identity || !identity.identityToken) {
-            throw new Error('No OAuth 2.0 identity tokens found for request');
-          }
-          return identity.identityToken;
-        case 'oauth2-refresh':
-          const refresh = await context.util.models.oAuth2Token.getByRequestId(request._id);
-          if (!refresh || !refresh.refreshToken) {
-            throw new Error('No OAuth 2.0 refresh tokens found for request');
-          }
-          return refresh.refreshToken;
-        case 'name':
-          return request.name;
-        case 'folder':
-          const ancestors = await context.util.models.request.getAncestors(request);
-          const doc = ancestors[folderIndex || 0];
-          if (!doc) {
-            throw new Error(
-              `Could not get folder by index ${folderIndex}. Must be between 0-${ancestors.length -
-                1}`,
-            );
-          }
-          return doc ? doc.name : null;
+      // xResponseId is the response id for the OAUTH request, not the current insomnia request
+      const responseId = oauth2Token.xResponseId;
+      if (!responseId) {
+        throw new Error('No response id for OAuth 2.0 token!');
       }
 
-      return null;
+      /**
+       * HACK!
+       *
+       * it would be great if we could just use context.util.models.response.getById,
+       * but it's not exposed by Insomnia's base extension.
+       *
+       * we also can't build electron apps on athena's hardware 😤, so we can't modify Insomnia itself.
+       *
+       * instead, just load up the nedb Response db, find the record we're interested in, and open the
+       * corresponding response file (which has the device_secret)
+       */
+      const db = new NeDB(
+        Object.assign(
+          {
+            autoload: true,
+            filename: path.join(getAppDataDir('Insomnia'), 'insomnia.Response.db'),
+          },
+        ),
+      );
+
+      const response = await new Promise((resolve, reject) => {
+        db
+          .find({
+            _id: responseId
+          })
+          .exec((err, rawDocs) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+
+            resolve(rawDocs[0]);
+          });
+      });
+
+      // bodyPath is the filename of the response file, which has the
+      // JSON response of the OAUTH request
+      const body = JSON.parse(fs.readFileSync(response.bodyPath));
+
+      return body['device_secret'];
     },
   },
 ];
 
-async function getRequestUrl(context, request) {
-  const url = await context.util.render(request.url);
-  const parameters = [];
-  for (const p of request.parameters) {
-    parameters.push({
-      name: await context.util.render(p.name),
-      value: await context.util.render(p.value),
-    });
+function getAppDataDir(app) {
+  switch (process.platform) {
+    case 'darwin':
+      return path.join(os.homedir(), 'Library', 'Application Support', app);
+
+    case 'win32':
+      return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), app);
+
+    case 'linux':
+      return path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.config'), app);
+
+    default:
+      return '';
   }
-
-  const qs = buildQueryStringFromParams(parameters);
-  const finalUrl = joinUrlAndQueryString(url, qs);
-
-  return smartEncodeUrl(finalUrl, request.settingEncodeUrl);
-}
-
-function getCookieValue(cookieJar, url, name) {
-  return new Promise((resolve, reject) => {
-    const jar = jarFromCookies(cookieJar.cookies);
-
-    jar.getCookies(url, {}, (err, cookies) => {
-      if (err) {
-        console.warn(`Failed to find cookie for ${url}`, err);
-      }
-
-      if (!cookies || cookies.length === 0) {
-        reject(new Error(`No cookies in store for url "${url}"`));
-      }
-
-      const cookie = cookies.find(cookie => cookie.key === name);
-      if (!cookie) {
-        const names = cookies.map(c => `"${c.key}"`).join(',\n\t');
-        throw new Error(
-          `No cookie with name "${name}".\nChoices are [\n\t${names}\n] for url "${url}"`,
-        );
-      } else {
-        resolve(cookie ? cookie.value : null);
-      }
-    });
-  });
 }

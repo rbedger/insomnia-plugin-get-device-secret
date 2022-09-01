@@ -45,14 +45,10 @@ module.exports.templateTags = [
        * instead, just load up the nedb Response db, find the record we're interested in, and open the
        * corresponding response file (which has the device_secret)
        */
-      const db = new NeDB(
-        Object.assign(
-          {
-            autoload: true,
-            filename: path.join(getAppDataDir('Insomnia'), 'insomnia.Response.db'),
-          },
-        ),
-      );
+      const db = new NeDB({
+        autoload: true,
+        filename: path.join(getAppDataDir('Insomnia'), 'insomnia.Response.db'),
+      });
 
       const response = await new Promise((resolve, reject) => {
         db

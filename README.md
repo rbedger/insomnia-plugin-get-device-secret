@@ -17,7 +17,9 @@ The Insomnia data directory can be found:
 ```powershell
 cd <dataDirectory>/plugins
 
-git checkout https://github.com/rbedger/insomnia-plugin-get-device-secret.git
+git clone https://github.com/rbedger/insomnia-plugin-get-device-secret.git
+
+pnpm i
 ```
 
 If you already have Insomnia open, click the Tools menu, and select Reload Plugins
